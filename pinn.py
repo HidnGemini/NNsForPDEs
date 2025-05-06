@@ -10,9 +10,6 @@ device = torch.accelerator.current_accelerator().type if torch.accelerator.is_av
 # which device are we using?
 print(f"Using {device} device")
     
-inps = [(x,t) for x in [0.01*i for i in range(101)] for t in [0.01*i for i in range(101)]]
-num_inps = len(inps)
-
 def train_loop(model, optimizer, num_gen, num_ic, num_bc):
     # Diclosure: I used chatGPT (as per Branson's suggestion) 
     # to learn about inputing multiple inputs at the same time

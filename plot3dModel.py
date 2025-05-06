@@ -8,6 +8,11 @@ from utils import NeuralNetwork
 import utils
 
 if __name__ == "__main__":
-    model = torch.load('heatEqPINN2.pth', weights_only=False)
+    model_file = 'heatEqPINN.pth'
+
+    model = torch.load(model_file, weights_only=False)
     fxn = utils.modelToFxn(model)
     utils.graph3D(fxn)
+
+    #utils.graph2D(fxn)
+    #utils.graph2D(utils.heatEquationSolution)
