@@ -1,6 +1,7 @@
 import torch
 from torch import nn
 import time
+import gc
 
 from utils2D import NeuralNetwork
 import utils2D
@@ -14,13 +15,14 @@ print(f"Using {device} device")
 def train_loop(model, optimizer, num_gen, num_ic, num_bc, print_info):
     model.train()
 
-    # general case (pde loss)
+    # general case (PDE loss)
     x_gen = torch.rand((num_gen, 1))
     y_gen = torch.rand((num_gen, 1))
     t_gen = torch.rand((num_gen, 1))
     in_gen = torch.cat([x_gen, y_gen, t_gen], dim=1).to(device)
     loss_pde = utils2D.pdeLoss(in_gen, model, 1.0)
 
+    # free tensors used in PDE loss
     del x_gen
     del y_gen
     del t_gen
@@ -35,6 +37,7 @@ def train_loop(model, optimizer, num_gen, num_ic, num_bc, print_info):
     u_ic_actual = model(inputs_ic)
     loss_ic = nn.MSELoss()(u_ic_expected, u_ic_actual)
 
+    # free tensors used in ic
     del x_ic
     del y_ic
     del t_ic
@@ -42,7 +45,7 @@ def train_loop(model, optimizer, num_gen, num_ic, num_bc, print_info):
     del u_ic_expected
     del u_ic_actual
 
-    # boundry condition on the x axis (u(0,t) = u(1,t)) 
+    # boundry condition for x (u(0,t) = u(1,t)) 
     t_bc = torch.linspace(0, 1, num_bc).view(-1, 1).to(device)
     x_bc_zeros = torch.zeros_like(t_bc).to(device)
     y_bc = torch.rand((num_bc, 1)).to(device)
@@ -53,6 +56,7 @@ def train_loop(model, optimizer, num_gen, num_ic, num_bc, print_info):
     out_bc_ones_x = model(inputs_ic_ones_x) # calculte u(1,y,t)s
     loss_bc_x = nn.MSELoss()(out_bc_zeros_x, torch.zeros_like(out_bc_zeros_x)) + nn.MSELoss()(out_bc_ones_x, torch.zeros_like(out_bc_ones_x))
 
+    # free tensors used in bc_x
     del t_bc
     del x_bc_zeros
     del y_bc
@@ -62,7 +66,7 @@ def train_loop(model, optimizer, num_gen, num_ic, num_bc, print_info):
     del inputs_ic_ones_x
     del out_bc_ones_x
 
-    # boundry condition on the x axis (u(0,t) = u(1,t)) 
+    # boundry condition for y (u(0,t) = u(1,t)) 
     t_bc = torch.linspace(0, 1, num_bc).view(-1, 1).to(device)
     y_bc_zeros = torch.zeros_like(t_bc).to(device)
     x_bc = torch.rand((num_bc, 1)).to(device)
@@ -73,6 +77,7 @@ def train_loop(model, optimizer, num_gen, num_ic, num_bc, print_info):
     out_bc_ones_y = model(inputs_ic_ones_y) # calculate u(x,1,t)s
     loss_bc_y = nn.MSELoss()(out_bc_zeros_y, torch.zeros_like(out_bc_zeros_y)) + nn.MSELoss()(out_bc_ones_y, torch.zeros_like(out_bc_ones_y))
 
+    # free tensors used in bc_y
     del t_bc
     del y_bc_zeros
     del x_bc
@@ -81,6 +86,16 @@ def train_loop(model, optimizer, num_gen, num_ic, num_bc, print_info):
     del out_bc_zeros_y
     del inputs_ic_ones_y
     del out_bc_ones_y
+
+    # force garbage collector
+    gc.collect()
+
+    # empty cache
+    if device == 'cuda':
+        torch.cuda.empty_cache()
+    elif device == 'mps':
+        torch.mps.empty_cache()
+    # not necessary for CPU since gc.collect() handles that
 
     # Total loss
     loss = loss_pde + loss_ic + loss_bc_x + loss_bc_y
