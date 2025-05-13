@@ -1,8 +1,8 @@
 import torch
 from torch import nn
 
-from utils import NeuralNetwork
-import utils
+from utils1D import NeuralNetwork
+import utils1D
 
 # choose device for training
 device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
@@ -22,7 +22,7 @@ def train_loop(model, optimizer, num_gen, num_ic, num_bc):
     x_gen = torch.rand((num_gen, 1))
     t_gen = torch.rand((num_gen, 1))
     in_gen = torch.cat([x_gen, t_gen], dim=1).to(device)
-    loss_pde = utils.pdeLoss(in_gen, model, 1.0)
+    loss_pde = utils1D.pdeLoss(in_gen, model, 1.0)
 
     # initial condition
     x_ic = torch.linspace(0, 1, num_ic).view(-1, 1)
@@ -76,8 +76,8 @@ while (i<min_epochs) or (losses[-1] > natural_minimum):
         natural_minimum = min(losses)
 
 
-nnFunction = utils.modelToFxn(model)
-utils.graph2D(nnFunction)
+nnFunction = utils1D.modelToFxn(model)
+utils1D.graph2D(nnFunction)
 
 torch.save(model, 'heatEqPINN(extraEpochs).pth')
 

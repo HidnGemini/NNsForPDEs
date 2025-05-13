@@ -1,8 +1,8 @@
 import torch
 from torch import nn
 
-from utils import NeuralNetwork
-import utils
+from utils1D import NeuralNetwork
+import utils1D
 
 # choose device for training
 device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
@@ -15,7 +15,7 @@ inps = [(x,t) for x in [0.01*i for i in range(101)] for t in [0.01*i for i in ra
 def discrete_soln_train_loop(inps, model, loss_fn, optimizer):
     # # calculate intended outputs (yes, this is not at all a PINN, but this is the first
     # # concept)
-    # outs = [utils.heatEquationSolution(x, t) for (x,t) in inps]
+    # outs = [utils1D.heatEquationSolution(x, t) for (x,t) in inps]
 
     # Set the model to training mode - important for batch normalization and dropout layers
     # Unnecessary in this situation but added for best practices
@@ -34,7 +34,7 @@ def discrete_soln_train_loop(inps, model, loss_fn, optimizer):
 
         # get expected output
         expected = torch.zeros(1, 1, device=device)
-        expected[0][0] = utils.heatEquationSolution(x,t) # use the known solution for loss
+        expected[0][0] = utils1D.heatEquationSolution(x,t) # use the known solution for loss
 
         loss = loss_fn(pred, expected)
         epochLoss += loss
@@ -60,10 +60,10 @@ for t in range(epochs):
     print(f"Epoch {t+1}\n-------------------------------")
     discrete_soln_train_loop(inps, model, loss_fn, optimizer)
 
-utils.graph2D(utils.heatEquationSolution)
+utils1D.graph2D(utils1D.heatEquationSolution)
 
-nnFunction = utils.modelToFxn(model)
-utils.graph2D(nnFunction)
+nnFunction = utils1D.modelToFxn(model)
+utils1D.graph2D(nnFunction)
 
 torch.save(model, 'heatEqRe10.pth')
 

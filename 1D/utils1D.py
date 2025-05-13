@@ -4,6 +4,7 @@ import math
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.ticker import LinearLocator
+import matplotlib.animation as animation
 
 # make sure device is defined
 device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
@@ -52,7 +53,10 @@ def modelToFxn(model):
     returns a function that takes inputs (x,t) and returns the output of given
     model with those inputs.
     """
-    return (lambda x,t : float(model(torch.tensor([[x, t]], device=device))))
+    if device == "mps":
+        return (lambda x,t : float(model(torch.tensor([[x, t]], dtype=torch.float32,  device=device))))
+    else:
+        return (lambda x,t : float(model(torch.tensor([[x, t]], dtype=torch.float64,  device=device))))
 
 
 def graph2D(fxn):
@@ -137,3 +141,62 @@ def pdeLoss(inputs, model, alpha):
     f = u_t - alpha * u_xx # PDE Residual
     
     return torch.mean(f**2)
+
+def graphAnimated2D(fxn):
+    # adapted from https://matplotlib.org/stable/gallery/animation/simple_anim.html
+
+    x = np.linspace(0, 1) # x data
+
+    fig, ax = plt.subplots()
+
+    u = [fxn(i,0) for i in x]
+
+    line, = ax.plot(x, u) # comma is python magic to unpack a list :)
+
+    def animate(step):
+        t = step / 250
+        u = [fxn(i,t) for i in x]
+        line.set_ydata(u)
+        ax.set_title(f"Time t={t}")
+        return line,
+
+    ani = animation.FuncAnimation(
+        fig, animate, interval=10, blit=False, save_count=50)
+
+    plt.show()
+
+def graphAnimated3D(fxn):
+    """
+    plots a function that takes three inputs (x,y,t) and gives one output in 3D space animated over time.
+    Code adapted from https://matplotlib.org/stable/gallery/mplot3d/surface3d_3.html#sphx-glr-gallery-mplot3d-surface3d-3-py
+    """
+    ax = plt.figure().add_subplot(projection='3d')
+
+    # Make data.
+    STEPS = 50
+    X = np.arange(0, 1, 1/STEPS)
+    T = np.arange(0, 1, 1/STEPS)
+    X, T = np.meshgrid(X, T)
+    U = X+T # arbitrary array of correct size (we overwrite later anyway)
+    for x in range(len(X)):
+        for t in range(len(T)):
+            xIn = float(X[0,x])
+            tIn = float(T[t,0])
+            U[x][t] = fxn(tIn, xIn)
+
+    # Create an empty array of strings with the same shape as the meshgrid, and
+    # populate it with two colors in a checkerboard pattern.
+    colortuple = ('w', 'k')
+    colors = np.empty(X.shape, dtype=str)
+    for y in range(len(T)):
+        for x in range(len(X)):
+            colors[y, x] = colortuple[(y) % len(colortuple)]
+
+    # Plot the surface with face colors taken from the array we made.
+    ax.plot_surface(X, T, U, facecolors=colors, linewidth=0)
+
+    # Customize the z axis.
+    ax.set_zlim(-1, 1)
+    ax.zaxis.set_major_locator(LinearLocator(6))
+
+    plt.show()

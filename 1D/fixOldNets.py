@@ -1,5 +1,5 @@
 import torch
-from utils import NeuralNetwork
+from utils1D import NeuralNetwork
 from torch import nn
 
 device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
@@ -31,7 +31,7 @@ print(old_state_dict)
 # Rename keys
 new_state_dict = {}
 for key in old_state_dict:
-    new_key = key.replace('linear_relu_stack', 'layer_stack')  # Or any renaming logic
+    new_key = key.replace('linear_relu_stack', 'layer_stack')
     new_state_dict[new_key] = old_state_dict[key]
 
 print(new_state_dict)

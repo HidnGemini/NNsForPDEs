@@ -1,10 +1,9 @@
 import os
-import heatEq
 import torch
 from torch import nn
 
-from utils import NeuralNetwork
-import utils
+from utils1D import NeuralNetwork
+import utils1D
 
 device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
 
@@ -49,4 +48,4 @@ print(du_dx)
 print(du_dt)
 print(d2u_dx2)
 
-utils.graph2D(utils.modelToFxn(model))
+utils1D.graph2D(utils1D.modelToFxn(model))
