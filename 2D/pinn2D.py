@@ -99,18 +99,38 @@ def train_loop(model, optimizer, num_gen, num_ic, num_bc, print_info):
 
     # Total loss
     loss = loss_pde + loss_ic + loss_bc_x + loss_bc_y
+    optimizer.zero_grad()
     loss.backward()
     optimizer.step()
 
+    lossVal = float(loss)
+
+    del loss
+    del loss_pde
+    del loss_ic
+    del loss_bc_x
+    del loss_bc_y
+
     if ((print_info.get('epoch')+1) % print_info.get('print_frequency') == 0):
+        # force garbage collector
+        gc.collect()
+
+        # empty cache
+        if device == 'cuda':
+            torch.cuda.empty_cache()
+        elif device == 'mps':
+            torch.mps.empty_cache()
+        # not necessary for CPU since gc.collect() handles that
+
+        # print stuff!
         elapsed = time.time() - print_info.get('start_time')
         mins = int(elapsed // 60)
         secs = int(elapsed % 60)
         print(
-            f"Epoch {print_info.get('epoch')+1} / {print_info.get('min_epochs')} : Time = {mins}m {secs:2.0f}s Loss = {loss:.8f}"
+            f"Epoch {print_info.get('epoch')+1} / {print_info.get('min_epochs')} : Time = {mins}m {secs:2.0f}s Loss = {lossVal:.8f}"
         )
 
-    return loss
+    return lossVal
     
 # create a model and print the architecture
 model = NeuralNetwork().to(device)
