@@ -45,7 +45,7 @@ def train_loop(model, optimizer, num_gen, num_ic, num_bc, print_info):
     del u_ic_expected
     del u_ic_actual
 
-    # boundry condition for x (u(0,t) = u(1,t)) 
+    # boundry condition for x (u(0,y,t) = u(1,x,t) = 0) 
     t_bc = torch.linspace(0, 1, num_bc).view(-1, 1).to(device)
     x_bc_zeros = torch.zeros_like(t_bc).to(device)
     y_bc = torch.rand((num_bc, 1)).to(device)
@@ -66,7 +66,7 @@ def train_loop(model, optimizer, num_gen, num_ic, num_bc, print_info):
     del inputs_ic_ones_x
     del out_bc_ones_x
 
-    # boundry condition for y (u(0,t) = u(1,t)) 
+    # boundry condition for y (u(x,0,t) = u(x,1,t) = 0) 
     t_bc = torch.linspace(0, 1, num_bc).view(-1, 1).to(device)
     y_bc_zeros = torch.zeros_like(t_bc).to(device)
     x_bc = torch.rand((num_bc, 1)).to(device)
@@ -164,5 +164,5 @@ while (i<min_epochs) or (losses[-1] > natural_minimum):
     if (i == min_epochs):
         natural_minimum = min(losses)
 
-torch.save(model, 'heatEqPINN(extraEpochs).pth')
+torch.save(model, '2DPINN_2.pth')
 

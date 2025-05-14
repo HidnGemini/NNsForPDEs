@@ -33,6 +33,21 @@ class NeuralNetwork(nn.Module):
         return logits
     
 
+class PeRCNN(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.rnn = nn.RNN(input_size=3, hidden_size=32, batch_first=True)
+        self.layer_stack = nn.Sequential(
+            nn.Linear(32, 32),
+            nn.SiLU(),
+            nn.Linear(32, 1)
+        )
+
+    def forward(self, input, hidden):
+        out_rnn, hidden = self.rnn(input, hidden)
+        out = self.layer_stack(out_rnn)
+        return out, hidden
+
 def getDevice():
     """
     used in place of gross
@@ -93,8 +108,8 @@ def pdeLoss(inputs, model, alpha):
 
 def graphAnimated3D(fxn):
     # Define the spatial domain
-    x = np.linspace(0, 1, 100)
-    y = np.linspace(0, 1, 100)
+    x = np.linspace(0, 1, 20)
+    y = np.linspace(0, 1, 20)
     X, Y = np.meshgrid(x, y)
 
     # Create the figure and 3D axes
@@ -102,7 +117,10 @@ def graphAnimated3D(fxn):
     ax = fig.add_subplot(111, projection='3d')
 
     # Initial surface plot
-    Z = fxn(X, Y, 0)
+    Z = np.zeros_like(X)
+    for i in range(len(x)):
+        for j in range(len(y)):
+            Z[i][j] = fxn(x[i], y[j], 0)
     surf = ax.plot_surface(X, Y, Z, cmap='viridis')
 
     # Set axes labels
@@ -112,16 +130,21 @@ def graphAnimated3D(fxn):
 
     # Update function for animation
     def update(frame):
+        t = frame*0.01
         ax.clear()
-        Z = fxn(X, Y, frame * 0.01)
+        Z = np.zeros_like(X)
+        for i in range(len(x)):
+            for j in range(len(y)):
+                Z[i][j] = fxn(x[i], y[j], t)
         ax.plot_surface(X, Y, Z, cmap='viridis')
         ax.set_zlim(0, 2)
         ax.set_xlabel('X')
         ax.set_ylabel('Y')
         ax.set_zlabel('u(x, y, t)')
-        ax.set_title(f"t = {frame * 0.01:.2f}")
+        ax.set_title(f"t = {t:.2f}")
 
     # Create the animation
-    ani = animation.FuncAnimation(fig, update, frames=100, interval=10)
+    ani = animation.FuncAnimation(fig, update, frames=100, interval=100)
+    ani.save("u_animation.gif", writer=animation.PillowWriter(fps=20))
 
     plt.show()
