@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.optim as optim
 import matplotlib.pyplot as plt
 
+device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
+
 # Parameters
 alpha = 0.01         # thermal diffusivity
 dx = 1.0 / 14        # spatial step (assuming 15 points from 0 to 1)
@@ -68,17 +70,17 @@ def generate_data(u0, n_steps, alpha, dx, dt):
         lap = compute_laplacian(u, dx)
         u = u + alpha * dt * lap
         history.append(u)
-    return torch.stack(history, dim=1)
+    return torch.stack(history, dim=1).to(device)
 
 # Create initial condition batch
 batch_size = 32
 torch.manual_seed(0)
-u0_batch = torch.sin(torch.linspace(0, 3.14, n_x)).repeat(batch_size, 1) * torch.rand(batch_size, 1)
+u0_batch = torch.sin(torch.linspace(0, 3.14, n_x, device=device)).repeat(batch_size, 1) * torch.rand(batch_size, 1, device=device)
 u_true = generate_data(u0_batch, n_t, alpha, dx, dt)
 
 # Model and training
-cell = HeatRNNCell(n_x, alpha, dx, dt)
-model = HeatRNN(cell, n_t)
+cell = HeatRNNCell(n_x, alpha, dx, dt).to(device)
+model = HeatRNN(cell, n_t).to(device)
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
 loss_fn = nn.MSELoss()
 
