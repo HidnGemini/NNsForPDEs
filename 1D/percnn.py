@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 import matplotlib.pyplot as plt
+import time
 
 # ---- Parameters ----
 alpha = 0.01  # thermal diffusivity
@@ -29,9 +30,6 @@ def generate_true_solution(u0, nt, alpha, dx, dt):
     return torch.stack(result, dim=0)  # shape: [nt+1, 1, nx]
 
 u_data = generate_true_solution(u0, nt, alpha, dx, dt).detach()
-
-import torch
-import torch.nn as nn
 
 class HeatRNN(nn.Module):
     def __init__(self, input_size, hidden_size):
@@ -64,8 +62,9 @@ model = HeatRNN(input_size=nx, hidden_size=64)
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
 loss_fxn = nn.MSELoss()
 
-num_epochs = 50000
+num_epochs = 20000
 u_pred = model(u0, nt)
+start_time = time.time()
 
 for epoch in range(num_epochs):
     optimizer.zero_grad()
@@ -77,7 +76,10 @@ for epoch in range(num_epochs):
     optimizer.step()
     
     if epoch % 50 == 0:
-        print(f"Epoch {epoch}, Data Loss: {loss_data_ic.item():.4f}, Physics Loss: {loss_phys.item():.4f}")
+        elapsed = time.time() - start_time
+        mins = int(elapsed // 60)
+        secs = int(elapsed % 60)
+        print(f"Epoch {epoch} / {num_epochs} @ {mins}m {secs:2.0f}s - Data Loss: {loss_data_ic.item():.4f}, Physics Loss: {loss_phys.item():.4f}")
 
 torch.save(model, "PeRCNN2.pth")
 
