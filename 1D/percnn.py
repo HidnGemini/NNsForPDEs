@@ -4,6 +4,9 @@ import torch.optim as optim
 import matplotlib.pyplot as plt
 import time
 
+from utils1D import RNN
+import utils1D as utils
+
 # ---- Parameters ----
 alpha = 0.01  # thermal diffusivity
 nx = 50       # number of spatial points
@@ -11,9 +14,12 @@ nt = 1000      # number of time steps
 dx = 1.0 / nx
 dt = 0.01
 
+device = utils.getDevice()
+# device = "cpu:0"
+
 # ---- Synthetic Initial Condition ----
 x = torch.linspace(0, 1, nx).unsqueeze(0)  # shape: [1, nx]
-u0 = torch.sin(torch.pi * x)  # initial temperature profile
+u0 = torch.sin(torch.pi * x).to(device)  # initial temperature profile
 u_true = u0.clone()  # Save initial
 
 # ---- Generate ground truth using finite difference ----
@@ -31,23 +37,6 @@ def generate_true_solution(u0, nt, alpha, dx, dt):
 
 u_data = generate_true_solution(u0, nt, alpha, dx, dt).detach()
 
-class HeatRNN(nn.Module):
-    def __init__(self, input_size, hidden_size):
-        super().__init__()
-        self.gru = nn.GRU(input_size, hidden_size, batch_first=True)
-        self.decoder = nn.Linear(hidden_size, input_size)
-
-    def forward(self, x, steps):
-        batch_size, nx = x.shape
-        h = torch.zeros(1, batch_size, self.gru.hidden_size, device=x.device)
-        preds = []
-        for _ in range(steps):
-            x_input = x.unsqueeze(1)  # shape: [batch, 1, nx]
-            out, h = self.gru(x_input, h)
-            x = self.decoder(out.squeeze(1))
-            preds.append(x)
-        return torch.stack(preds)  # shape: [steps, batch, nx]
-
 # ---- Physics loss (finite-difference approximation of heat equation) ----
 def physics_loss(u_pred, alpha, dx, dt):
     u_t = (u_pred[1:] - u_pred[:-1])[:,0,:] / dt
@@ -58,11 +47,12 @@ def physics_loss(u_pred, alpha, dx, dt):
     return nn.MSELoss()(residual, torch.zeros_like(residual))
 
 # ---- Training ----
-model = HeatRNN(input_size=nx, hidden_size=64)
+model = RNN(input_size=nx, hidden_size=64).to(device)
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
 loss_fxn = nn.MSELoss()
 
-num_epochs = 20000
+num_epochs = 25000
+print_freq = 50
 u_pred = model(u0, nt)
 start_time = time.time()
 
@@ -75,7 +65,7 @@ for epoch in range(num_epochs):
     loss.backward()
     optimizer.step()
     
-    if epoch % 50 == 0:
+    if epoch % print_freq == 0:
         elapsed = time.time() - start_time
         mins = int(elapsed // 60)
         secs = int(elapsed % 60)
@@ -87,7 +77,7 @@ print(f"Final Epoch, Data Loss: {loss_data_ic.item():.4f}, Physics Loss: {loss_p
 u_pred = model(u0, nt)
 
 # ---- Prediction example ----
-plt.imshow(u_pred.squeeze().detach().numpy(), aspect='auto', cmap='viridis')
+plt.imshow(torch.Tensor.cpu(u_pred.squeeze().detach()).numpy(), aspect='auto', cmap='viridis')
 plt.colorbar()
 plt.title("Temperature over Time")
 plt.xlabel("X")

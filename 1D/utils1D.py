@@ -32,6 +32,24 @@ class NeuralNetwork(nn.Module):
         return logits
     
 
+class RNN(nn.Module):
+    def __init__(self, input_size, hidden_size):
+        super().__init__()
+        self.gru = nn.GRU(input_size, hidden_size, batch_first=True)
+        self.decoder = nn.Linear(hidden_size, input_size)
+
+    def forward(self, x, steps):
+        batch_size, nx = x.shape
+        h = torch.zeros(1, batch_size, self.gru.hidden_size, device=x.device)
+        preds = []
+        for _ in range(steps):
+            x_input = x.unsqueeze(1)  # shape: [batch, 1, nx]
+            out, h = self.gru(x_input, h)
+            x = self.decoder(out.squeeze(1))
+            preds.append(x)
+        return torch.stack(preds)  # shape: [steps, batch, nx]
+
+
 def getDevice():
     """
     used in place of gross
