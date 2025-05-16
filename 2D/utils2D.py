@@ -107,6 +107,9 @@ def pdeLoss(inputs, model, alpha):
 
 
 def graphAnimated3D(fxn):
+    vmin = 0
+    vmax = 2
+
     # Define the spatial domain
     x = np.linspace(0, 1, 20)
     y = np.linspace(0, 1, 20)
@@ -121,7 +124,7 @@ def graphAnimated3D(fxn):
     for i in range(len(x)):
         for j in range(len(y)):
             Z[i][j] = fxn(x[i], y[j], 0)
-    surf = ax.plot_surface(X, Y, Z, cmap='viridis')
+    surf = ax.plot_surface(X, Y, Z, cmap='viridis', vmin=vmin, vmax=vmax)
 
     # Set axes labels
     ax.set_xlabel('X')
@@ -136,7 +139,7 @@ def graphAnimated3D(fxn):
         for i in range(len(x)):
             for j in range(len(y)):
                 Z[i][j] = fxn(x[i], y[j], t)
-        ax.plot_surface(X, Y, Z, cmap='viridis')
+        ax.plot_surface(X, Y, Z, cmap='viridis', vmin=vmin, vmax=vmax)
         ax.set_zlim(0, 2)
         ax.set_xlabel('X')
         ax.set_ylabel('Y')
