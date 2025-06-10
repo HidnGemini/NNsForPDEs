@@ -24,7 +24,7 @@ class NeuralNetwork(nn.Module):
             nn.Linear(32, 32),
             nn.SiLU(),
             nn.Linear(32, 1), # 1 output
-        )
+        )   
 
     def forward(self, x):
         x = self.flatten(x)
@@ -35,8 +35,21 @@ class NeuralNetwork(nn.Module):
 class RNN(nn.Module):
     def __init__(self, input_size, hidden_size):
         super().__init__()
-        self.gru = nn.GRU(input_size, hidden_size, batch_first=True)
-        self.decoder = nn.Linear(hidden_size, input_size)
+
+        self.encoder = nn.Sequential(
+            nn.Linear(input_size, hidden_size),
+            nn.Tanh(),
+            nn.Linear(hidden_size, hidden_size)
+        )
+
+        self.gru = nn.GRU(hidden_size, hidden_size, batch_first=True)
+
+        self.decoder = nn.Sequential(
+            nn.Linear(hidden_size, hidden_size),
+            nn.Tanh(),
+            nn.Linear(hidden_size, input_size)
+        )
+        
 
     def forward(self, x, steps):
         batch_size, nx = x.shape
@@ -44,7 +57,8 @@ class RNN(nn.Module):
         preds = []
         for _ in range(steps):
             x_input = x.unsqueeze(1)  # shape: [batch, 1, nx]
-            out, h = self.gru(x_input, h)
+            gru_input = self.encoder(x_input)
+            out, h = self.gru(gru_input, h)
             x = self.decoder(out.squeeze(1))
             preds.append(x)
         return torch.stack(preds)  # shape: [steps, batch, nx]
@@ -141,8 +155,8 @@ def pdeLoss(inputs, model, alpha):
         inputs, 
         grad_outputs=torch.ones_like(u),
         retain_graph=True, 
-        create_graph=True
-    )[0]
+        create_graph=True(
+    )[0])
 
     # get first derivatives
     u_x = firstGradients[:, [0]]

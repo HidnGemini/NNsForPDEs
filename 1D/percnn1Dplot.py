@@ -25,12 +25,12 @@ class HeatRNN(nn.Module):
 
 nx = 50
 x = torch.linspace(0, 1, nx).unsqueeze(0)  # shape: [1, nx]
-u0 = torch.sin(torch.pi * x)  # initial temperature profile
+u0 = torch.sin((torch.pi/2) * x)  # initial temperature profile
 
-model_file = "firstPeRCNN.pth"
+model_file = "PeRCNN2.pth"
 model = torch.load(model_file, weights_only=False, map_location=torch.device("cpu"))
 
-n_t = 1000
+n_t = 20000
 u_pred = model(u0, n_t)
 
 # plot anim
@@ -49,8 +49,8 @@ def animate(step):
     return pred,
 
 ani = animation.FuncAnimation(
-    fig, animate, interval=10, blit=False, save_count=50, frames=n_t)
+    fig, animate, interval=1, blit=False, save_count=50, frames=n_t)
 
 plt.show()
 
-ani.save("u_animation.gif", writer=animation.PillowWriter(fps=20))
+#ani.save("u_animation.gif", writer=animation.PillowWriter(fps=20))
