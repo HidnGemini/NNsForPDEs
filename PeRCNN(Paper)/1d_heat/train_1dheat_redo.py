@@ -12,17 +12,18 @@ import time
 import os
 import scipy as sp
 
+# setup gpu / npu
 torch.set_default_dtype(torch.float32)
 device = torch.accelerator.current_accelerator().type if torch.accelerator.is_available() else "cpu"
 
-rng_seed = 0 # pokemon emerald rng
-
+# pokemon emerald rng
+rng_seed = 0 
 torch.manual_seed(rng_seed)
 np.random.seed(rng_seed)
 
 lap_1d = [[[-1/12, 4/3, -2.5, 4/3, -1/12]]] # 2nd derivative approximation kernel
 
-
+# trained upscaler model
 class Upscaler(nn.Module):
 
     def __init__(self):
@@ -39,7 +40,7 @@ class Upscaler(nn.Module):
     def forward(self, input):
         return self.net(input)
     
-
+# recurrent convolutional cell
 class RCNNCell(nn.Module):
 
     def __init__(self, input_channels, hidden_channels, input_kernel_size):
@@ -53,10 +54,10 @@ class RCNNCell(nn.Module):
         self.input_stride = 1
         self.dx = 0.01
         self.dt = 0.5
-        self.mu_up = 1 # TODO: WAAAY bigger than for the grey scott eqs. idk if this will be problematic or not
+        self.mu_up = 3.89e-5 # TODO: this is a constant that i do not understand, but without it i get exploding gradients
 
         # laplace parameters?
-        # TODO: WHAT DOES THIS MEAN WHAT DOES THIS DO
+        # TODO: WHAT DOES THIS MEAN WHAT DOES THIS DO I DONT GET THIS
         self.CA = torch.nn.Parameter(torch.tensor((np.random.rand()-0.5)*2, dtype=torch.float32), requires_grad=True)
         self.CB = torch.nn.Parameter(torch.tensor((np.random.rand()-0.5)*2, dtype=torch.float32), requires_grad=True)
 
@@ -96,9 +97,7 @@ class RCNNCell(nn.Module):
         # periodic padding
         h_pad = torch.cat((    h[:, :, -2:],     h,     h[:, :, 0:2]), dim=2)
         u_pad = h_pad[:, 0:1, ...]  # 1xTx37
-        print(u_pad.shape)
         u_prev = h[:, 0:1, ...]     # 1xTx33
-        print(u_prev.shape)
 
         u_res = self.mu_up*torch.sigmoid(self.CA)*self.laplace(u_pad) + self.Wh4( self.Wh1(h)*self.Wh2(h)*self.Wh3(h) )
         u_next = u_prev + u_res * self.dt
@@ -242,24 +241,26 @@ class LossGenerator(nn.Module):
     def get_phy_loss(self, output):
 
         # du2/d2x
-        laplace_u = self.laplace(output[0:1, 0:-2, :]) # 1xT-2x32 (1x999x32)
+        laplace_u = self.laplace(output[0:1, :, :]) # 1xT-2x32 (1x999x32)
 
-        u = output[0:1, :, 2:-2]
+        u = output[0:1, :, 1:-1]
         len_t = u.shape[1]
         len_x = u.shape[2]
 
-        u_conv1d = u.permute(2, 0, 1) # TODO: i don't really understand why... [x, u, step]
-        du_dt = self.dt(u_conv1d) # length is 2 smaller since no padding
-        du_dt = du_dt.permute(1, 2, 0) # undo initial permutation
+        # u_conv1d = u.permute(2, 0, 1) # TODO: i don't really understand why... [x, u, step]
+        # du_dt = self.dt(u_conv1d) # length is 2 smaller since no padding
+        # du_dt = du_dt.permute(1, 2, 0) # undo initial permutation
 
-        u = output[0:1, :-2, 2:-2] # exlude last two time steps for compatibility with derivatives
+        du_dt = self.dt(u)
+
+        u = output[0:1, :, 2:-2]
 
         # make sure dimensions good
         assert laplace_u.shape == du_dt.shape
         assert du_dt.shape == u.shape
 
         # heat equation
-        alpha = 0.5
+        alpha = 0.1
         heat_eq_rhs = alpha*laplace_u
         residual = du_dt - heat_eq_rhs
 
@@ -279,7 +280,7 @@ def loss_gen(output, loss_fxn):
     
     # calculate PDE loss
     phys_loss = loss_fxn.get_phy_loss(output)
-    loss = nn.MSE_loss(phys_loss, torch.zeros_like(phys_loss).to(device))
+    loss = nn.MSELoss()(phys_loss, torch.zeros_like(phys_loss).to(device))
 
     return loss
     
@@ -290,7 +291,7 @@ def pretrain_upscaler(Upconv, init_state_low, epochs=4000):
     scheduler = StepLR(optimizer, step_size=100, gamma=0.99)
 
     # for epoch in range(epochs):
-    for epoch in range(100):
+    for epoch in range(5000):
         optimizer.zero_grad()
         init_state_pred = Upconv(init_state_low.unsqueeze(0))
         loss = nn.MSELoss()(init_state_pred, init_state_upscaled)
@@ -323,24 +324,31 @@ def train(model, truth, epochs, time_batch_size, lr, dt, dx, isContinuing):
 
         output = torch.cat(tuple(output), dim=0) 
 
-        pred = output.permute(1,0,2)[:,::20,::4]
-        gt = truth[:, ::20, :-1].to(device)
+        pred = output.permute(1,0,2)[:,::2,::4]
+        gt = truth[:, ::2, :-1].to(device)
 
-        # split into training set and validation set
-        idx = int(pred.shape[0]*0.9)
-        pred_tra, pred_val = pred[:idx], pred[idx:]
-        gt_tra,   gt_val   =   gt[:idx],   gt[idx:]
+        # # split into training set and validation set
+        idx = int(pred.shape[1]*0.8)
+        pred_tra = pred[:idx]
+        pred_val = pred[idx:]
+        gt_tra =   gt[:idx]
+        gt_val = gt[idx:]
+
+        # # clamp to avoid NaN
+        pred_tra = torch.clamp(pred_tra, -1e3, 1e3)
+        gt_tra = torch.clamp(gt_tra, -1e3, 1e3)
+
+        pred = torch.clamp(pred, -1e3, 1e3)
+        gt = torch.clamp(pred, -1e3, 1e3)
 
         # compute losses
-        print(pred.shape)
-        print(gt.shape)
-        loss_data = nn.MSELoss()(pred_tra, gt_tra)
-        loss_valid = nn.MSELoss()(pred_val, gt_val)
+        loss_data = nn.MSELoss(reduction='sum')(pred, gt)
+        loss_valid = nn.MSELoss(reduction='sum')(pred_val, gt_val)
         loss_ic  = get_ic_loss(model)
         loss_phy = loss_gen(output, loss_fxn)
 
         # weight losses (physics loss only used for validation)
-        loss = 40*loss_data + 0.25*loss_ic
+        loss = 10*loss_data + 1*loss_ic
         loss.backward(retain_graph=True)
 
         batch_loss += loss.item()
@@ -377,7 +385,7 @@ def save_model(model, model_name, save_path):
 
 def load_model(model):
     # Load model and optimizer state
-    checkpoint = torch.load('./PeRCNN(Paper)/2d_gs_rd/model/checkpoint.pt')
+    checkpoint = torch.load('./PeRCNN(Paper)/1d_heat/model/checkpoint.pt')
     model.load_state_dict(checkpoint['model_state_dict'])
     optimizer = optim.Adam(model.parameters(), lr=0.0)
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
@@ -414,7 +422,7 @@ if __name__ == '__main__':
     time_batch_size = time_steps
     steps = time_batch_size + 1
     effective_step = list(range(0, steps))
-    n_iters = 5000   # 10000 for 200 steps, 5000 for 4000 steps, 5000 for 800 steps
+    n_iters = 10000   # 10000 for 200 steps, 5000 for 4000 steps, 5000 for 800 steps
     learning_rate = 1e-3
     save_path = './PeRCNN(Paper)/2d_gs_rd/model/'
 
