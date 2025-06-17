@@ -395,11 +395,6 @@ def load_model(model):
 # TODO: PLOTS
 
 if __name__ == '__main__':
-
-
-    print("i wanna go build butterflies instead")
-
-
     ################# prepare the input dataset ####################
     time_steps = 200   # 200->400->800 multi-stage training works best, then 2500 for inference.
     dt = 0.5
@@ -408,12 +403,12 @@ if __name__ == '__main__':
 
     ################### define the Initial conditions ####################
     data = sp.io.loadmat('./PeRCNN(Paper)/1d_heat/1x1001x25_heat_eq_data.mat')['tensor']
-    datamat = torch.from_numpy(np.transpose(data, (0, 1, 2)).astype(np.float32))             # 1x1001x25
-    truth_clean = datamat[:,:1001]  # [1, 1001, 33]
+    datamat = torch.from_numpy(np.transpose(data, (0, 1, 2)).astype(np.float32)) # 1x1001x25
+    truth_clean = datamat[:,:1001]  # [1, 1001, 25]
     # Add noise 10%
     # UV = add_noise(torch.tensor(datamat), pec=0.1)
     # Retrieve initial condition
-    IC = datamat[:, 0:1, :]                                                # 1x2x100x100
+    IC = datamat[:, 0:1, :] # 1x1x25 IC
 
     truth = datamat[:,:time_steps+1]
 
