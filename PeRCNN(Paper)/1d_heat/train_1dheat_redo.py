@@ -291,7 +291,7 @@ def pretrain_upscaler(Upconv, init_state_low, epochs=4000):
     scheduler = StepLR(optimizer, step_size=100, gamma=0.99)
 
     # for epoch in range(epochs):
-    for epoch in range(5000):
+    for epoch in range(epochs):
         optimizer.zero_grad()
         init_state_pred = Upconv(init_state_low.unsqueeze(0))
         loss = nn.MSELoss()(init_state_pred, init_state_upscaled)
@@ -322,10 +322,10 @@ def train(model, truth, epochs, time_batch_size, lr, dt, dx, isContinuing):
 
         output, second_last_state = model()
 
-        output = torch.cat(tuple(output), dim=0) 
+        output = torch.cat(tuple(output), dim=0)
 
-        pred = output.permute(1,0,2)[:,::2,::4]
-        gt = truth[:, ::2, :-1].to(device)
+        pred = output.permute(1,0,2)[:,:-1,::4] # 1xTxX
+        gt = truth[:, :, :-1].to(device)
 
         # # split into training set and validation set
         idx = int(pred.shape[1]*0.8)
@@ -335,11 +335,11 @@ def train(model, truth, epochs, time_batch_size, lr, dt, dx, isContinuing):
         gt_val = gt[idx:]
 
         # # clamp to avoid NaN
-        pred_tra = torch.clamp(pred_tra, -1e3, 1e3)
-        gt_tra = torch.clamp(gt_tra, -1e3, 1e3)
+        # pred_tra = torch.clamp(pred_tra, -1e3, 1e3)
+        # gt_tra = torch.clamp(gt_tra, -1e3, 1e3)
 
-        pred = torch.clamp(pred, -1e3, 1e3)
-        gt = torch.clamp(pred, -1e3, 1e3)
+        # pred = torch.clamp(pred, -1e3, 1e3)
+        # gt = torch.clamp(pred, -1e3, 1e3)
 
         # compute losses
         loss_data = nn.MSELoss(reduction='sum')(pred, gt)
@@ -363,7 +363,7 @@ def train(model, truth, epochs, time_batch_size, lr, dt, dx, isContinuing):
         scheduler.step()
 
         # print into
-        print('[%d/%d %d%%] loss: %.7f, ic_loss: %.7f, data_loss: %.7f, val_loss: %.7f, loss phy_loss: %.8f' % ((epoch+1), epochs, ((epoch+1)/epochs*100.0),
+        print('[%d/%d %d%%] loss: %.7f, ic_loss: %.7f, data_loss: %.7f, val_loss: %.7f, phy_loss: %.8f' % ((epoch+1), epochs, ((epoch+1)/epochs*100.0),
               batch_loss, ic_loss, data_loss, val_loss, phy_loss))
         
         train_loss_list.append(batch_loss)
@@ -392,23 +392,22 @@ def load_model(model):
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=200, gamma=0.98)
     return model, optimizer, scheduler
 
-# TODO: PLOTS
 
 if __name__ == '__main__':
     ################# prepare the input dataset ####################
-    time_steps = 200   # 200->400->800 multi-stage training works best, then 2500 for inference.
+    time_steps = 800   # 200->400->800 multi-stage training works best, then 2500 for inference.
     dt = 0.5
     dx = 1.0/100
     dy = 1.0/100
 
     ################### define the Initial conditions ####################
-    data = sp.io.loadmat('./PeRCNN(Paper)/1d_heat/1x1001x25_heat_eq_data.mat')['tensor']
-    datamat = torch.from_numpy(np.transpose(data, (0, 1, 2)).astype(np.float32)) # 1x1001x25
-    truth_clean = datamat[:,:1001]  # [1, 1001, 25]
+    data = sp.io.loadmat('./PeRCNN(Paper)/1d_heat/1x1001x15_heat_eq_data.mat')['tensor']
+    datamat = torch.from_numpy(np.transpose(data, (0, 1, 2)).astype(np.float32)) # 1x1001x15
+    truth_clean = datamat[:,:1001]  # 1x1001x15
     # Add noise 10%
-    # UV = add_noise(torch.tensor(datamat), pec=0.1)
+    # UV = add_noise(torch.tensor(datamat), pec=0.1) #TODO
     # Retrieve initial condition
-    IC = datamat[:, 0:1, :] # 1x1x25 IC
+    IC = datamat[:, 0:1, :] # 1x1x15 IC
 
     truth = datamat[:,:time_steps+1]
 
@@ -417,7 +416,7 @@ if __name__ == '__main__':
     time_batch_size = time_steps
     steps = time_batch_size + 1
     effective_step = list(range(0, steps))
-    n_iters = 10000   # 10000 for 200 steps, 5000 for 4000 steps, 5000 for 800 steps
+    n_iters = 5000   # 10000 for 200 steps, 5000 for 4000 steps, 5000 for 800 steps
     learning_rate = 1e-3
     save_path = './PeRCNN(Paper)/2d_gs_rd/model/'
 
@@ -436,9 +435,9 @@ if __name__ == '__main__':
 
     # train the model
     start = time.time()
-    cont = False   # if continue training (or use pretrained model), set cont=True
+    cont = True   # if continue training (or use pretrained model), set cont=True
     if not cont:
-        pretrain_upscaler(model.UpconvBlock, init_state_low)
+        pretrain_upscaler(model.UpconvBlock, init_state_low, epochs=5000)
     train_loss_list = train(model, truth, n_iters, time_batch_size, learning_rate, dt, dx, isContinuing=cont)
 
     print('The training time is: ', (time.time()-start))

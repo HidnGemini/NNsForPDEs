@@ -23,4 +23,4 @@ if __name__ == "__main__":
         all_states.append(state_list)
     data_matrix = torch.tensor([all_states])
 
-    sp.io.savemat('PeRCNN(Paper)/1d_heat/1x1001x25_heat_eq_data.mat', {'tensor': data_matrix})
+    sp.io.savemat(f'PeRCNN(Paper)/1d_heat/1x{num_t_steps+1}x{num_x_steps+1}_heat_eq_data.mat', {'tensor': data_matrix})

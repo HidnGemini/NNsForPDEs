@@ -27,8 +27,8 @@ dx = 1.0/100
 dy = 1.0/100
 
 # load low res data matrix
-data = sp.io.loadmat('./PeRCNN(Paper)/1d_heat/1x1001x25_heat_eq_data.mat')['tensor']
-datamat = torch.from_numpy(np.transpose(data, (0, 1, 2)).astype(np.float32))             # 1x1001x25
+data = sp.io.loadmat('./PeRCNN(Paper)/1d_heat/1x1001x15_heat_eq_data.mat')['tensor']
+datamat = torch.from_numpy(np.transpose(data, (0, 1, 2)).astype(np.float32))             # 1x1001x15
 
 IC = datamat[:, 0:1, :] # first timestep is initial condition
 U0_low = IC[0, 0, ::4] # lower resolution? frankly i don't know why we're doing that
