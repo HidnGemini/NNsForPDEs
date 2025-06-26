@@ -142,7 +142,6 @@ class RCNN(nn.Module):
 
         # initial setup
         self.init_state = self.UpconvBlock(self.init_state_low) # upscale initial state
-
         internal_state = []
         outputs = [self.init_state]
         second_last_state = []
@@ -313,6 +312,9 @@ def train(model, truth, epochs, time_batch_size, lr, dt, dx, isContinuing):
 
     upscaled_truth = torch.stack(upscaled_t_steps).permute(2,1,0,3)[0]
 
+    print(upscaled_truth.shape)
+    print(truth.shape)
+
     train_loss_list = []
 
     if isContinuing:
@@ -369,7 +371,7 @@ def train(model, truth, epochs, time_batch_size, lr, dt, dx, isContinuing):
         loss_phy = loss_gen(output, loss_fxn)
 
         # weight losses (physics loss only used for validation)
-        loss = 40*loss_data + 0.25*loss_ic
+        loss = 10*loss_data + 1*loss_ic # loss data getting modified :(
         torch.autograd.set_detect_anomaly(True)
         loss.backward(retain_graph=True)
 
@@ -440,7 +442,7 @@ if __name__ == '__main__':
     effective_step = list(range(0, steps))
     n_iters = 5000   # 10000 for 200 steps, 5000 for 4000 steps, 5000 for 800 steps
     learning_rate = 1e-3
-    save_path = './PeRCNN(Paper)/1d_heat/model/'
+    save_path = './PeRCNN(Paper)/2d_gs_rd/model/'
 
     # Low-res initial condition
     U0_low = IC[0, 0, :]
