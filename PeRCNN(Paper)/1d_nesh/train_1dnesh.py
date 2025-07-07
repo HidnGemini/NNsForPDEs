@@ -142,6 +142,7 @@ class RCNN(nn.Module):
 
         # initial setup
         self.init_state = self.UpconvBlock(self.init_state_low) # upscale initial state
+
         internal_state = []
         outputs = [self.init_state]
         second_last_state = []
@@ -273,7 +274,7 @@ def get_ic_loss(model):
 
     init_state_prediction = model.UpconvBlock(model.init_state_low)
 
-    loss_ic = nn.MSELoss()(init_state_prediction, init_state_upscaled)
+    loss_ic = nn.MSELoss()(init_state_prediction, init_state_upscaled) #TODO: SHOULDNT THIS NOT BE USING THE UPSCALER????
 
     return loss_ic
 
@@ -311,9 +312,6 @@ def train(model, truth, epochs, time_batch_size, lr, dt, dx, isContinuing):
         upscaled_t_steps.append(t_step_upscaled)
 
     upscaled_truth = torch.stack(upscaled_t_steps).permute(2,1,0,3)[0]
-
-    print(upscaled_truth.shape)
-    print(truth.shape)
 
     train_loss_list = []
 
@@ -368,17 +366,17 @@ def train(model, truth, epochs, time_batch_size, lr, dt, dx, isContinuing):
         loss_data = nn.MSELoss(reduction='sum')(pred, gt)
         loss_valid = nn.MSELoss(reduction='sum')(pred_val, gt_val)
         loss_ic  = get_ic_loss(model)
-        loss_phy = loss_gen(output, loss_fxn)
+        # loss_phy = loss_gen(output, loss_fxn)
 
         # weight losses (physics loss only used for validation)
-        loss = 10*loss_data + 1*loss_ic # loss data getting modified :(
+        loss = loss_data + loss_ic
         torch.autograd.set_detect_anomaly(True)
         loss.backward(retain_graph=True)
 
         batch_loss += loss.item()
 
         # unpack from tensors for printing
-        phy_loss = loss_phy.item()
+        # phy_loss = loss_phy.item()
         ic_loss = loss_ic.item()
         data_loss = loss_data.item()
         val_loss = loss_valid.item()
@@ -387,8 +385,10 @@ def train(model, truth, epochs, time_batch_size, lr, dt, dx, isContinuing):
         scheduler.step()
 
         # print into
-        print('[%d/%d %d%%] loss: %.7f, ic_loss: %.7f, data_loss: %.7f, val_loss: %.7f, phy_loss: %.8f' % ((epoch+1), epochs, ((epoch+1)/epochs*100.0),
-              batch_loss, ic_loss, data_loss, val_loss, phy_loss))
+        # print('[%d/%d %d%%] loss: %.7f, ic_loss: %.7f, data_loss: %.7f, val_loss: %.7f, phy_loss: %.8f' % ((epoch+1), epochs, ((epoch+1)/epochs*100.0),
+            #   batch_loss, ic_loss, data_loss, val_loss, phy_loss))
+        print('[%d/%d %d%%] loss: %.7f, ic_loss: %.7f, data_loss: %.7f, val_loss: %.7f' % ((epoch+1), epochs, ((epoch+1)/epochs*100.0),
+              batch_loss, ic_loss, data_loss, val_loss))
         
         train_loss_list.append(batch_loss)
 
@@ -400,7 +400,7 @@ def train(model, truth, epochs, time_batch_size, lr, dt, dx, isContinuing):
             torch.save({
                 'model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
-            }, './PeRCNN(Paper)/1d_heat/model/checkpoint.pt')
+            }, './PeRCNN(Paper)/1d_nesh/model/checkpoint.pt')
 
     return train_loss_list
 
@@ -409,7 +409,7 @@ def save_model(model, model_name, save_path):
 
 def load_model(model):
     # Load model and optimizer state
-    checkpoint = torch.load('./PeRCNN(Paper)/1d_heat/model/checkpoint.pt')
+    checkpoint = torch.load('./PeRCNN(Paper)/1d_nesh/model/checkpoint.pt')
     model.load_state_dict(checkpoint['model_state_dict'])
     optimizer = optim.Adam(model.parameters(), lr=0.0)
     optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
@@ -419,13 +419,13 @@ def load_model(model):
 
 if __name__ == '__main__':
     ################# prepare the input dataset ####################
-    time_steps = 200   # 200->400->800 multi-stage training works best, then 2500 for inference.
-    dt = 0.5
+    time_steps = 800   # 200->400->800 multi-stage training works best, then 2500 for inference.
+    dt = 0.25
     dx = 1.0/100
     dy = 1.0/100
 
     ################### define the Initial conditions ####################
-    data = sp.io.loadmat('./PeRCNN(Paper)/1d_heat/1x1001x15_heat_eq_data.mat')['tensor']
+    data = sp.io.loadmat('./PeRCNN(Paper)/1d_nesh/1x1000x15_n_tot_data.mat')['tensor']
     datamat = torch.from_numpy(np.transpose(data, (0, 1, 2)).astype(np.float32)) # 1x1001x15
     truth_clean = datamat[:,:1001]  # 1x1001x15
     # Add noise 10%
@@ -440,9 +440,9 @@ if __name__ == '__main__':
     time_batch_size = time_steps
     steps = time_batch_size + 1
     effective_step = list(range(0, steps))
-    n_iters = 5000   # 10000 for 200 steps, 5000 for 4000 steps, 5000 for 800 steps
+    n_iters = 5000   # 10000 for 200 steps, 5000 for 400 steps, 5000 for 800 steps
     learning_rate = 1e-3
-    save_path = './PeRCNN(Paper)/2d_gs_rd/model/'
+    save_path = './PeRCNN(Paper)/1d_nesh/model/'
 
     # Low-res initial condition
     U0_low = IC[0, 0, :]
@@ -459,9 +459,9 @@ if __name__ == '__main__':
 
     # train the model
     start = time.time()
-    cont = False   # if continue training (or use pretrained model), set cont=True
+    cont = True   # if continue training (or use pretrained model), set cont=True
     if not cont:
-        pretrain_upscaler(model.UpconvBlock, init_state_low, epochs=5000)
+        pretrain_upscaler(model.UpconvBlock, init_state_low, epochs=10000)
     train_loss_list = train(model, truth, n_iters, time_batch_size, learning_rate, dt, dx, isContinuing=cont)
 
     print('The training time is: ', (time.time()-start))

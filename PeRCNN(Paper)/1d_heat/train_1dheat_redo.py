@@ -274,7 +274,7 @@ def get_ic_loss(model):
 
     init_state_prediction = model.UpconvBlock(model.init_state_low)
 
-    loss_ic = nn.MSELoss()(init_state_prediction, init_state_upscaled)
+    loss_ic = nn.MSELoss()(init_state_prediction, init_state_upscaled) #TODO: SHOULDNT THIS NOT BE USING THE UPSCALER????
 
     return loss_ic
 
@@ -369,7 +369,7 @@ def train(model, truth, epochs, time_batch_size, lr, dt, dx, isContinuing):
         loss_phy = loss_gen(output, loss_fxn)
 
         # weight losses (physics loss only used for validation)
-        loss = 40*loss_data + 0.25*loss_ic
+        loss = loss_data + loss_ic
         torch.autograd.set_detect_anomaly(True)
         loss.backward(retain_graph=True)
 
@@ -417,7 +417,7 @@ def load_model(model):
 
 if __name__ == '__main__':
     ################# prepare the input dataset ####################
-    time_steps = 200   # 200->400->800 multi-stage training works best, then 2500 for inference.
+    time_steps = 800   # 200->400->800 multi-stage training works best, then 2500 for inference.
     dt = 0.5
     dx = 1.0/100
     dy = 1.0/100
@@ -438,7 +438,7 @@ if __name__ == '__main__':
     time_batch_size = time_steps
     steps = time_batch_size + 1
     effective_step = list(range(0, steps))
-    n_iters = 5000   # 10000 for 200 steps, 5000 for 4000 steps, 5000 for 800 steps
+    n_iters = 10000   # 10000 for 200 steps, 5000 for 4000 steps, 5000 for 800 steps
     learning_rate = 1e-3
     save_path = './PeRCNN(Paper)/1d_heat/model/'
 
@@ -457,7 +457,7 @@ if __name__ == '__main__':
 
     # train the model
     start = time.time()
-    cont = False   # if continue training (or use pretrained model), set cont=True
+    cont = True   # if continue training (or use pretrained model), set cont=True
     if not cont:
         pretrain_upscaler(model.UpconvBlock, init_state_low, epochs=5000)
     train_loss_list = train(model, truth, n_iters, time_batch_size, learning_rate, dt, dx, isContinuing=cont)

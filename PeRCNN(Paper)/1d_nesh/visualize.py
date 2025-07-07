@@ -14,7 +14,7 @@ import scipy as sp
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 
-import train_1dheat_redo
+import train_1dnesh
 
 # setup gpu / npu
 torch.set_default_dtype(torch.float32)
@@ -27,7 +27,7 @@ dx = 1.0/100
 dy = 1.0/100
 
 # load low res data matrix
-data = sp.io.loadmat('./PeRCNN(Paper)/1d_heat/1x1001x15_heat_eq_data.mat')['tensor']
+data = sp.io.loadmat('./PeRCNN(Paper)/1d_nesh/1x1000x15_n_tot_data.mat')['tensor']
 datamat = torch.from_numpy(np.transpose(data, (0, 1, 2)).astype(np.float32))             # 1x1001x15
 
 IC = datamat[:, 0:1, :] # first timestep is initial condition
@@ -40,7 +40,7 @@ steps = time_batch_size + 1
 effective_step = list(range(0, steps))
 
 # make model
-model = train_1dheat_redo.RCNN(
+model = train_1dnesh.RCNN(
     input_channels = 2, 
     hidden_channels = 8,
     init_state_low = init_state_low,
@@ -50,7 +50,7 @@ model = train_1dheat_redo.RCNN(
 ).to(device)
 
 # load model
-checkpoint = torch.load('./PeRCNN(Paper)/1d_heat/model/checkpoint.pt')
+checkpoint = torch.load('./PeRCNN(Paper)/1d_nesh/model/checkpoint.pt')
 model.load_state_dict(checkpoint['model_state_dict'])
 optimizer = optim.Adam(model.parameters(), lr=0.0)
 optimizer.load_state_dict(checkpoint['optimizer_state_dict'])

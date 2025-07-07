@@ -80,6 +80,6 @@ def animate(step):
     return line,
 
 ani = animation.FuncAnimation(
-    fig, animate, interval=10, blit=False, save_count=50)
+    fig, animate, interval=30, blit=False, save_count=50)
 
 plt.show()
