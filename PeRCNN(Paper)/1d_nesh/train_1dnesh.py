@@ -127,6 +127,8 @@ class RCNN(nn.Module):
 
         # upscaler for initial state
         self.UpconvBlock = Upscaler()
+        self.nonNNUpscaler = lambda x : F.interpolate(x, (151), mode='linear')
+
 
         # setup CRNN cell
         name = 'crnn_cell' # what?
@@ -141,7 +143,8 @@ class RCNN(nn.Module):
     def forward(self):
 
         # initial setup
-        self.init_state = self.UpconvBlock(self.init_state_low) # upscale initial state
+        # self.init_state = self.UpconvBlock(self.init_state_low) # upscale initial state
+        self.init_state = self.nonNNUpscaler(self.init_state_low)
 
         internal_state = []
         outputs = [self.init_state]
@@ -240,39 +243,13 @@ class LossGenerator(nn.Module):
             kernel_size = 3,
             name = 'partial_t').to(device)
         
-    def get_phy_loss(self, output):
-
-        # du2/d2x
-        laplace_u = self.laplace(output[0:1, :, :]) # 1xT-2x32 (1x999x32)
-
-        u = output[0:1, :, 1:-1]
-        len_t = u.shape[1]
-        len_x = u.shape[2]
-
-        # u_conv1d = u.permute(2, 0, 1) # TODO: i don't really understand why... [x, u, step]
-        # du_dt = self.dt(u_conv1d) # length is 2 smaller since no padding
-        # du_dt = du_dt.permute(1, 2, 0) # undo initial permutation
-
-        du_dt = self.dt(u)
-
-        u = output[0:1, :, 2:-2]
-
-        # make sure dimensions good
-        assert laplace_u.shape == du_dt.shape
-        assert du_dt.shape == u.shape
-
-        # heat equation
-        alpha = 0.1
-        heat_eq_rhs = alpha*laplace_u
-        residual = du_dt - heat_eq_rhs
-
-        return residual
 
 def get_ic_loss(model):
 
     init_state_upscaled = F.interpolate(model.init_state_low, (151), mode='linear')
 
-    init_state_prediction = model.UpconvBlock(model.init_state_low)
+    # init_state_prediction = model.UpconvBlock(model.init_state_low)
+    init_state_prediction = model.nonNNUpscaler(model.init_state_low)
 
     loss_ic = nn.MSELoss()(init_state_prediction, init_state_upscaled) #TODO: SHOULDNT THIS NOT BE USING THE UPSCALER????
 
@@ -295,7 +272,7 @@ def pretrain_upscaler(Upconv, init_state_low, epochs=4000):
     # for epoch in range(epochs):
     for epoch in range(epochs):
         optimizer.zero_grad()
-        init_state_pred = Upconv(init_state_low.unsqueeze(0))
+        init_state_pred = Upconv(init_state_low.unsqueeze(0).unsqueeze(0))
         loss = nn.MSELoss()(init_state_pred, init_state_upscaled)
         loss.backward(retain_graph=True)
         print('[%d] loss: %.9f' % ((epoch+1), loss.item()))
@@ -436,11 +413,11 @@ if __name__ == '__main__':
     truth = datamat[:,:time_steps+1]
 
     ################# build the model #####################
-    # define the mdel hyperparameters
+    # define the model hyperparameters
     time_batch_size = time_steps
     steps = time_batch_size + 1
     effective_step = list(range(0, steps))
-    n_iters = 5000   # 10000 for 200 steps, 5000 for 400 steps, 5000 for 800 steps
+    n_iters = 10000   # 10000 for 200 steps, 5000 for 400 steps, 5000 for 800 steps
     learning_rate = 1e-3
     save_path = './PeRCNN(Paper)/1d_nesh/model/'
 
@@ -456,6 +433,8 @@ if __name__ == '__main__':
         step = steps, 
         effective_step = effective_step
     ).to(device)
+
+    print(model.UpconvBlock(init_state_low.unsqueeze(0).unsqueeze(0)))
 
     # train the model
     start = time.time()

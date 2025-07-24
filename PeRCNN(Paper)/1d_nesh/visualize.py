@@ -31,7 +31,7 @@ data = sp.io.loadmat('./PeRCNN(Paper)/1d_nesh/1x1000x15_n_tot_data.mat')['tensor
 datamat = torch.from_numpy(np.transpose(data, (0, 1, 2)).astype(np.float32))             # 1x1001x15
 
 IC = datamat[:, 0:1, :] # first timestep is initial condition
-U0_low = IC[0, 0, ::4] # lower resolution? frankly i don't know why we're doing that
+U0_low = IC[0, 0, :]
 init_state_low = torch.tensor((U0_low)).to(device)
 
 # this is terrible. i NEED to rename these, but this is mostly just straight from their code
@@ -64,7 +64,7 @@ data_tensor = torch.concat(data).squeeze(1).cpu().detach()
 print(data_tensor.shape)
 
 # graphing time
-x = np.linspace(0, 1, 52)
+x = np.linspace(0, 1, 151)
 
 fig, ax = plt.subplots()
 
